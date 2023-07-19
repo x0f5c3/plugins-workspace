@@ -1,9 +1,25 @@
 {
   "tag": "alpha",
   "changes": [
+    ".changes/disable-window-controls-api-options.md",
+    ".changes/disable-window-controls-api.md",
+    ".changes/fs-wiret-binary-file.md",
     ".changes/notification-init-script.md",
+    ".changes/notification-revert-sound.md",
     ".changes/notification-sound.md",
+    ".changes/os-plugin-refactor.md",
+    ".changes/persisted-scope-asset.md",
+    ".changes/persisted-scope-glob.md",
+    ".changes/shell-detached.md",
+    ".changes/stronghold-arg-name.md",
     ".changes/stronghold-constructor.md",
-    ".changes/v2-alpha.md"
+    ".changes/updater-nsis-admin.md",
+    ".changes/updater-nsis.md",
+    ".changes/v2-alpha.md",
+    ".changes/window-incognito.md",
+    ".changes/window-is-focused.md",
+    ".changes/window-set-effects.md",
+    ".changes/window-state-decorated.md",
+    ".changes/window-state-promise.md"
   ]
 }

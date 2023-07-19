@@ -1,5 +1,10 @@
 # Changelog
 
+## \[2.0.0-alpha.1]
+
+- [`aba07c2`](https://github.com/tauri-apps/plugins-workspace/commit/aba07c27b887c1cc54026024227cb3f74c91e21a)([#468](https://github.com/tauri-apps/plugins-workspace/pull/468)) Split up fs and asset scopes. **This will reset the asset protocol scope once!**
+- [`aba07c2`](https://github.com/tauri-apps/plugins-workspace/commit/aba07c27b887c1cc54026024227cb3f74c91e21a)([#468](https://github.com/tauri-apps/plugins-workspace/pull/468)) Fix usage of directory patterns by removing glob asterisks at the end before allowing/forbidding them. This was causing them to be escaped, and so undesirable paths were allowed/forbidden while polluting the `.persisted-scope` file.
+
 ## \[2.0.0-alpha.0]
 
 - [`ebb2eb2`](https://github.com/tauri-apps/plugins-workspace/commit/ebb2eb2fe2ebfbb70530d16a983d396aa5829aa1)([#274](https://github.com/tauri-apps/plugins-workspace/pull/274)) Recursively unescape saved patterns before allowing/forbidding them. This effectively prevents `.persisted-scope` files from blowing up, which caused Out-Of-Memory issues, while automatically fixing existing broken files seamlessly.
