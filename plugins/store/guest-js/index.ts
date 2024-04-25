@@ -1,10 +1,10 @@
-// Copyright 2021 Tauri Programme within The Commons Conservancy
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-import { invoke } from "@tauri-apps/api/tauri";
-import { UnlistenFn } from "@tauri-apps/api/event";
-import { appWindow } from "@tauri-apps/api/window";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+
+import { invoke } from "@tauri-apps/api/core";
 
 interface ChangePayload<T> {
   path: string;
@@ -29,7 +29,7 @@ export class Store {
    * @returns
    */
   async set(key: string, value: unknown): Promise<void> {
-    return await invoke("plugin:store|set", {
+    await invoke("plugin:store|set", {
       path: this.path,
       key,
       value,
@@ -82,7 +82,7 @@ export class Store {
    * @returns
    */
   async clear(): Promise<void> {
-    return await invoke("plugin:store|clear", {
+    await invoke("plugin:store|clear", {
       path: this.path,
     });
   }
@@ -94,7 +94,7 @@ export class Store {
    * @returns
    */
   async reset(): Promise<void> {
-    return await invoke("plugin:store|reset", {
+    await invoke("plugin:store|reset", {
       path: this.path,
     });
   }
@@ -152,7 +152,7 @@ export class Store {
    * @returns
    */
   async load(): Promise<void> {
-    return await invoke("plugin:store|load", {
+    await invoke("plugin:store|load", {
       path: this.path,
     });
   }
@@ -165,7 +165,7 @@ export class Store {
    * @returns
    */
   async save(): Promise<void> {
-    return await invoke("plugin:store|save", {
+    await invoke("plugin:store|save", {
       path: this.path,
     });
   }
@@ -175,36 +175,34 @@ export class Store {
    * @param key
    * @param cb
    * @returns A promise resolving to a function to unlisten to the event.
+   *
+   * @since 2.0.0
    */
   async onKeyChange<T>(
     key: string,
-    cb: (value: T | null) => void
+    cb: (value: T | null) => void,
   ): Promise<UnlistenFn> {
-    return await appWindow.listen<ChangePayload<T>>(
-      "store://change",
-      (event) => {
-        if (event.payload.path === this.path && event.payload.key === key) {
-          cb(event.payload.value);
-        }
+    return await listen<ChangePayload<T>>("store://change", (event) => {
+      if (event.payload.path === this.path && event.payload.key === key) {
+        cb(event.payload.value);
       }
-    );
+    });
   }
 
   /**
    * Listen to changes on the store.
    * @param cb
    * @returns A promise resolving to a function to unlisten to the event.
+   *
+   * @since 2.0.0
    */
   async onChange<T>(
-    cb: (key: string, value: T | null) => void
+    cb: (key: string, value: T | null) => void,
   ): Promise<UnlistenFn> {
-    return await appWindow.listen<ChangePayload<T>>(
-      "store://change",
-      (event) => {
-        if (event.payload.path === this.path) {
-          cb(event.payload.key, event.payload.value);
-        }
+    return await listen<ChangePayload<T>>("store://change", (event) => {
+      if (event.payload.path === this.path) {
+        cb(event.payload.key, event.payload.value);
       }
-    );
+    });
   }
 }

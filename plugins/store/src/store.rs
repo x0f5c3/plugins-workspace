@@ -1,42 +1,49 @@
-// Copyright 2021 Tauri Programme within The Commons Conservancy
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use crate::Error;
+#[cfg(mobile)]
+use crate::plugin::PluginHandle;
+use crate::{ChangePayload, Error};
 use serde_json::Value as JsonValue;
 use std::{
     collections::HashMap,
-    fs::{create_dir_all, read, File},
-    io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
-type SerializeFn = fn(&HashMap<String, JsonValue>) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
-type DeserializeFn = fn(&[u8]) -> Result<HashMap<String, JsonValue>, Box<dyn std::error::Error>>;
+type SerializeFn =
+    fn(&HashMap<String, JsonValue>) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>>;
+type DeserializeFn =
+    fn(&[u8]) -> Result<HashMap<String, JsonValue>, Box<dyn std::error::Error + Send + Sync>>;
 
 fn default_serialize(
     cache: &HashMap<String, JsonValue>,
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     Ok(serde_json::to_vec(&cache)?)
 }
 
 fn default_deserialize(
     bytes: &[u8],
-) -> Result<HashMap<String, JsonValue>, Box<dyn std::error::Error>> {
+) -> Result<HashMap<String, JsonValue>, Box<dyn std::error::Error + Send + Sync>> {
     serde_json::from_slice(bytes).map_err(Into::into)
 }
 
 /// Builds a [`Store`]
-pub struct StoreBuilder {
+pub struct StoreBuilder<R: Runtime> {
     path: PathBuf,
     defaults: Option<HashMap<String, JsonValue>>,
     cache: HashMap<String, JsonValue>,
     serialize: SerializeFn,
     deserialize: DeserializeFn,
+
+    #[cfg(mobile)]
+    mobile_plugin_handle: Option<PluginHandle<R>>,
+    #[cfg(not(mobile))]
+    _marker: std::marker::PhantomData<R>,
 }
 
-impl StoreBuilder {
+impl<R: Runtime> StoreBuilder<R> {
     /// Creates a new [`StoreBuilder`].
     ///
     /// # Examples
@@ -44,19 +51,30 @@ impl StoreBuilder {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use tauri_plugin_store::StoreBuilder;
     ///
-    /// let builder = StoreBuilder::new("store.bin".parse()?);
+    /// let builder = StoreBuilder::new("store.bin");
     ///
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new<P: AsRef<Path>>(path: P) -> Self {
         Self {
-            path,
+            // Since Store.path is only exposed to the user in emit calls we may as well simplify it here already.
+            path: dunce::simplified(path.as_ref()).to_path_buf(),
             defaults: None,
             cache: Default::default(),
             serialize: default_serialize,
             deserialize: default_deserialize,
+            #[cfg(mobile)]
+            mobile_plugin_handle: None,
+            #[cfg(not(mobile))]
+            _marker: std::marker::PhantomData,
         }
+    }
+
+    #[cfg(mobile)]
+    pub fn mobile_plugin_handle(mut self, handle: PluginHandle<R>) -> Self {
+        self.mobile_plugin_handle = Some(handle);
+        self
     }
 
     /// Inserts a default key-value pair.
@@ -71,7 +89,7 @@ impl StoreBuilder {
     ///
     /// defaults.insert("foo".to_string(), "bar".into());
     ///
-    /// let builder = StoreBuilder::new("store.bin".parse()?)
+    /// let builder = StoreBuilder::new("store.bin")
     ///   .defaults(defaults);
     ///
     /// # Ok(())
@@ -89,7 +107,7 @@ impl StoreBuilder {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use tauri_plugin_store::StoreBuilder;
     ///
-    /// let builder = StoreBuilder::new("store.bin".parse()?)
+    /// let builder = StoreBuilder::new("store.bin")
     ///   .default("foo".to_string(), "bar".into());
     ///
     /// # Ok(())
@@ -109,7 +127,7 @@ impl StoreBuilder {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use tauri_plugin_store::StoreBuilder;
     ///
-    /// let builder = StoreBuilder::new("store.json".parse()?)
+    /// let builder = StoreBuilder::new("store.json")
     ///   .serialize(|cache| serde_json::to_vec(&cache).map_err(Into::into));
     ///
     /// # Ok(())
@@ -126,7 +144,7 @@ impl StoreBuilder {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use tauri_plugin_store::StoreBuilder;
     ///
-    /// let builder = StoreBuilder::new("store.json".parse()?)
+    /// let builder = StoreBuilder::new("store.json")
     ///   .deserialize(|bytes| serde_json::from_slice(&bytes).map_err(Into::into));
     ///
     /// # Ok(())
@@ -140,68 +158,141 @@ impl StoreBuilder {
     ///
     /// # Examples
     /// ```
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use tauri_plugin_store::StoreBuilder;
-    ///
-    /// let store = StoreBuilder::new("store.bin".parse()?).build();
-    ///
-    /// # Ok(())
-    /// # }
-    pub fn build(self) -> Store {
+    /// tauri::Builder::default()
+    ///   .setup(|app| {
+    ///     let store = tauri_plugin_store::StoreBuilder::new("store.json").build(app.handle().clone());
+    ///     Ok(())
+    ///   });
+    /// ```
+    pub fn build(self, app: AppHandle<R>) -> Store<R> {
         Store {
+            app,
             path: self.path,
             defaults: self.defaults,
             cache: self.cache,
             serialize: self.serialize,
             deserialize: self.deserialize,
+
+            #[cfg(mobile)]
+            mobile_plugin_handle: self.mobile_plugin_handle,
         }
     }
 }
 
 #[derive(Clone)]
-pub struct Store {
+pub struct Store<R: Runtime> {
+    pub(crate) app: AppHandle<R>,
     pub(crate) path: PathBuf,
-    pub(crate) defaults: Option<HashMap<String, JsonValue>>,
+    defaults: Option<HashMap<String, JsonValue>>,
     pub(crate) cache: HashMap<String, JsonValue>,
-    serialize: SerializeFn,
-    deserialize: DeserializeFn,
+    pub(crate) serialize: SerializeFn,
+    pub(crate) deserialize: DeserializeFn,
+
+    #[cfg(mobile)]
+    pub(crate) mobile_plugin_handle: Option<PluginHandle<R>>,
 }
 
-impl Store {
-    /// Update the store from the on-disk state
-    pub fn load<R: Runtime>(&mut self, app: &AppHandle<R>) -> Result<(), Error> {
-        let app_dir = app
-            .path_resolver()
-            .app_data_dir()
-            .expect("failed to resolve app dir");
-        let store_path = app_dir.join(&self.path);
-
-        let bytes = read(store_path)?;
-
-        self.cache = (self.deserialize)(&bytes).map_err(Error::Deserialize)?;
+impl<R: Runtime> Store<R> {
+    pub fn insert(&mut self, key: String, value: JsonValue) -> Result<(), Error> {
+        self.cache.insert(key.clone(), value.clone());
+        self.app.emit(
+            "store://change",
+            ChangePayload {
+                path: &self.path,
+                key: &key,
+                value: &value,
+            },
+        )?;
 
         Ok(())
     }
 
-    /// Saves the store to disk
-    pub fn save<R: Runtime>(&self, app: &AppHandle<R>) -> Result<(), Error> {
-        let app_dir = app
-            .path_resolver()
-            .app_data_dir()
-            .expect("failed to resolve app dir");
-        let store_path = app_dir.join(&self.path);
+    pub fn get(&self, key: impl AsRef<str>) -> Option<&JsonValue> {
+        self.cache.get(key.as_ref())
+    }
 
-        create_dir_all(store_path.parent().expect("invalid store path"))?;
+    pub fn has(&self, key: impl AsRef<str>) -> bool {
+        self.cache.contains_key(key.as_ref())
+    }
 
-        let bytes = (self.serialize)(&self.cache).map_err(Error::Serialize)?;
-        let mut f = File::create(&store_path)?;
-        f.write_all(&bytes)?;
+    pub fn delete(&mut self, key: impl AsRef<str>) -> Result<bool, Error> {
+        let flag = self.cache.remove(key.as_ref()).is_some();
+        if flag {
+            self.app.emit(
+                "store://change",
+                ChangePayload {
+                    path: &self.path,
+                    key: key.as_ref(),
+                    value: &JsonValue::Null,
+                },
+            )?;
+        }
+        Ok(flag)
+    }
 
+    pub fn clear(&mut self) -> Result<(), Error> {
+        let keys: Vec<String> = self.cache.keys().cloned().collect();
+        self.cache.clear();
+        for key in keys {
+            self.app.emit(
+                "store://change",
+                ChangePayload {
+                    path: &self.path,
+                    key: &key,
+                    value: &JsonValue::Null,
+                },
+            )?;
+        }
         Ok(())
+    }
+
+    pub fn reset(&mut self) -> Result<(), Error> {
+        let has_defaults = self.defaults.is_some();
+
+        if has_defaults {
+            if let Some(defaults) = &self.defaults {
+                for (key, value) in &self.cache {
+                    if defaults.get(key) != Some(value) {
+                        let _ = self.app.emit(
+                            "store://change",
+                            ChangePayload {
+                                path: &self.path,
+                                key,
+                                value: defaults.get(key).unwrap_or(&JsonValue::Null),
+                            },
+                        );
+                    }
+                }
+                self.cache = defaults.clone();
+            }
+            Ok(())
+        } else {
+            self.clear()
+        }
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.cache.keys()
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &JsonValue> {
+        self.cache.values()
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = (&String, &JsonValue)> {
+        self.cache.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
     }
 }
 
-impl std::fmt::Debug for Store {
+impl<R: Runtime> std::fmt::Debug for Store<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Store")
             .field("path", &self.path)

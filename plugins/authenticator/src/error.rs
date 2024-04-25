@@ -1,3 +1,7 @@
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
 use serde::{Serialize, Serializer};
 
 #[derive(Debug, thiserror::Error)]
@@ -7,7 +11,7 @@ pub enum Error {
     #[error(transparent)]
     JSON(#[from] serde_json::Error),
     #[error(transparent)]
-    U2F(#[from] u2f::u2ferror::U2fError),
+    U2F(#[from] crate::u2f_crate::u2ferror::U2fError),
     #[error(transparent)]
     Auth(#[from] authenticator::errors::AuthenticatorError),
 }

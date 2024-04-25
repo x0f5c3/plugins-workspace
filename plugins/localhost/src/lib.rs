@@ -1,6 +1,17 @@
-// Copyright 2019-2021 Tauri Programme within The Commons Conservancy
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
+
+//! [![](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/localhost/banner.png)](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/localhost)
+//!
+//! Expose your apps assets through a localhost server instead of the default custom protocol.
+//!
+//! **Note: This plugins brings considerable security risks and you should only use it if you know what your are doing. If in doubt, use the default custom protocol implementation.**
+
+#![doc(
+    html_logo_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png",
+    html_favicon_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png"
+)]
 
 use std::collections::HashMap;
 
@@ -59,11 +70,11 @@ impl Builder {
         let on_request = self.on_request.take();
 
         PluginBuilder::new("localhost")
-            .setup(move |app| {
+            .setup(move |app, _api| {
                 let asset_resolver = app.asset_resolver();
                 std::thread::spawn(move || {
-                    let server = Server::http(&format!("localhost:{}", port))
-                        .expect("Unable to spawn server");
+                    let server =
+                        Server::http(&format!("localhost:{port}")).expect("Unable to spawn server");
                     for req in server.incoming_requests() {
                         let path = req
                             .url()
@@ -89,16 +100,6 @@ impl Builder {
 
                             if let Some(on_request) = &on_request {
                                 on_request(&request, &mut response);
-                            }
-
-                            #[cfg(target_os = "linux")]
-                            if let Some(response_csp) =
-                                response.headers.get("Content-Security-Policy")
-                            {
-                                let html = String::from_utf8_lossy(&asset.bytes);
-                                let body =
-                                    html.replacen(tauri::utils::html::CSP_TOKEN, response_csp, 1);
-                                asset.bytes = body.as_bytes().to_vec();
                             }
 
                             let mut resp = HttpResponse::from_data(asset.bytes);

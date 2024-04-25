@@ -1,3 +1,7 @@
+# Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
+
 name: Audit Rust
 
 on:
@@ -6,14 +10,16 @@ on:
     - cron: "0 0 * * *"
   push:
     branches:
-      - dev
+      - v1
+      - v2
     paths:
       - ".github/workflows/audit-rust.yml"
       - "**/Cargo.lock"
       - "**/Cargo.toml"
   pull_request:
     branches:
-      - dev
+      - v1
+      - v2
     paths:
       - ".github/workflows/audit-rust.yml"
       - "**/Cargo.lock"
@@ -28,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/audit-check@v1
+      - uses: rustsec/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # https://github.com/tauri-apps/plugins-workspace/issues/774
+          ignore: ${{ github.event_name != 'schedule' && 'RUSTSEC-2023-0071' || '' }}

@@ -1,8 +1,12 @@
-import { invoke } from "@tauri-apps/api/tauri";
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
+import { invoke } from "@tauri-apps/api/core";
 
 export class Authenticator {
   async init(): Promise<void> {
-    return await invoke("plugin:authenticator|init_auth");
+    await invoke("plugin:authenticator|init_auth");
   }
 
   async register(challenge: string, application: string): Promise<string> {
@@ -17,7 +21,7 @@ export class Authenticator {
     challenge: string,
     application: string,
     registerData: string,
-    clientData: string
+    clientData: string,
   ): Promise<string> {
     return await invoke("plugin:authenticator|verify_registration", {
       challenge,
@@ -30,7 +34,7 @@ export class Authenticator {
   async sign(
     challenge: string,
     application: string,
-    keyHandle: string
+    keyHandle: string,
   ): Promise<string> {
     return await invoke("plugin:authenticator|sign", {
       timeout: 10000,
@@ -46,7 +50,7 @@ export class Authenticator {
     signData: string,
     clientData: string,
     keyHandle: string,
-    pubkey: string
+    pubkey: string,
   ): Promise<number> {
     return await invoke("plugin:authenticator|verify_signature", {
       challenge,

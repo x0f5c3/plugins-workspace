@@ -1,4 +1,17 @@
-import { invoke, transformCallback } from "@tauri-apps/api/tauri";
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
+import { invoke, Channel } from "@tauri-apps/api/core";
+
+export interface ConnectionConfig {
+  writeBufferSize?: number;
+  maxWriteBufferSize?: number;
+  maxMessageSize?: number;
+  maxFrameSize?: number;
+  acceptUnmaskedFrames?: boolean;
+  headers?: HeadersInit;
+}
 
 export interface MessageKind<T, D> {
   type: T;
@@ -26,16 +39,27 @@ export default class WebSocket {
     this.listeners = listeners;
   }
 
-  static async connect(url: string, options?: unknown): Promise<WebSocket> {
+  static async connect(
+    url: string,
+    config?: ConnectionConfig,
+  ): Promise<WebSocket> {
     const listeners: Array<(arg: Message) => void> = [];
-    const handler = (message: Message): void => {
-      listeners.forEach((l) => l(message));
+
+    const onMessage = new Channel<Message>();
+    onMessage.onmessage = (message: Message): void => {
+      listeners.forEach((l) => {
+        l(message);
+      });
     };
+
+    if (config?.headers != null) {
+      config.headers = Array.from(new Headers(config.headers).entries());
+    }
 
     return await invoke<number>("plugin:websocket|connect", {
       url,
-      callbackFunction: transformCallback(handler),
-      options,
+      onMessage,
+      config,
     }).then((id) => new WebSocket(id, listeners));
   }
 
@@ -53,17 +77,17 @@ export default class WebSocket {
       m = { type: "Binary", data: message };
     } else {
       throw new Error(
-        "invalid `message` type, expected a `{ type: string, data: any }` object, a string or a numeric array"
+        "invalid `message` type, expected a `{ type: string, data: any }` object, a string or a numeric array",
       );
     }
-    return await invoke("plugin:websocket|send", {
+    await invoke("plugin:websocket|send", {
       id: this.id,
       message: m,
     });
   }
 
   async disconnect(): Promise<void> {
-    return await this.send({
+    await this.send({
       type: "Close",
       data: {
         code: 1000,

@@ -1,8 +1,10 @@
-![plugin-websocket](banner.png)
+![plugin-websocket](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/websocket/banner.png)
 
-<!-- description -->
+Expose a WebSocket server to your Tauri frontend.
 
 ## Install
+
+_This plugin requires a Rust version of at least **1.75**_
 
 There are three general methods of installation that we can recommend.
 
@@ -16,7 +18,9 @@ Install the Core plugin by adding the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-tauri-plugin-websocket = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
+tauri-plugin-websocket = "2.0.0-beta"
+# alternatively with Git:
+tauri-plugin-websocket = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
 ```
 
 You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
@@ -24,11 +28,18 @@ You can install the JavaScript Guest bindings using your preferred JavaScript pa
 > Note: Since most JavaScript package managers are unable to install packages from git monorepos we provide read-only mirrors of each plugin. This makes installation option 2 more ergonomic to use.
 
 ```sh
-pnpm add https://github.com/tauri-apps/tauri-plugin-websocket
+pnpm add @tauri-apps/plugin-websocket
 # or
-npm add https://github.com/tauri-apps/tauri-plugin-websocket
+npm add @tauri-apps/plugin-websocket
 # or
-yarn add https://github.com/tauri-apps/tauri-plugin-websocket
+yarn add @tauri-apps/plugin-websocket
+
+# alternatively with Git:
+pnpm add https://github.com/tauri-apps/tauri-plugin-websocket#v2
+# or
+npm add https://github.com/tauri-apps/tauri-plugin-websocket#v2
+# or
+yarn add https://github.com/tauri-apps/tauri-plugin-websocket#v2
 ```
 
 ## Usage
@@ -49,7 +60,7 @@ fn main() {
 Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
 
 ```javascript
-import { WebSocket } from "tauri-plugin-websocket-api";
+import WebSocket from "@tauri-apps/plugin-websocket";
 
 const ws = await WebSocket.connect("wss://example.com");
 
@@ -61,6 +72,22 @@ await ws.disconnect();
 ## Contributing
 
 PRs accepted. Please make sure to read the Contributing Guide before making a pull request.
+
+## Partners
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://crabnebula.dev" target="_blank">
+          <img src="https://github.com/tauri-apps/plugins-workspace/raw/v2/.github/sponsors/crabnebula.svg" alt="CrabNebula" width="283">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For the complete list of sponsors please visit our [website](https://tauri.app#sponsors) and [Open Collective](https://opencollective.com/tauri).
 
 ## License
 

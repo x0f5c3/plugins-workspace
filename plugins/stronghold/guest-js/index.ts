@@ -1,4 +1,8 @@
-import { invoke } from "@tauri-apps/api/tauri";
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
+import { invoke } from "@tauri-apps/api/core";
 
 type BytesDto = string | number[];
 export type ClientPath =
@@ -23,7 +27,7 @@ export type StoreKey =
   | ArrayBuffer;
 
 function toBytesDto(
-  v: ClientPath | VaultPath | RecordPath | StoreKey
+  v: ClientPath | VaultPath | RecordPath | StoreKey,
 ): string | number[] {
   if (typeof v === "string") {
     return v;
@@ -81,7 +85,7 @@ export interface NetworkConfig {
 export interface Duration {
   /** The number of whole seconds contained by this Duration. */
   secs: number;
-  /** The fractional part of this Duration, in nanoseconds. Must be greater or equal to 0 and smaller than 1e+9 (the max number of nanoseoncds in a second)*/
+  /** The fractional part of this Duration, in nanoseconds. Must be greater or equal to 0 and smaller than 1e+9 (the max number of nanoseoncds in a second) */
   nanos: number;
 }
 
@@ -125,7 +129,7 @@ class ProcedureExecutor {
    */
   async generateSLIP10Seed(
     outputLocation: Location,
-    sizeBytes?: number
+    sizeBytes?: number,
   ): Promise<Uint8Array> {
     return await invoke<number[]>("plugin:stronghold|execute_procedure", {
       ...this.procedureArgs,
@@ -152,7 +156,7 @@ class ProcedureExecutor {
     chain: number[],
     source: "Seed" | "Key",
     sourceLocation: Location,
-    outputLocation: Location
+    outputLocation: Location,
   ): Promise<Uint8Array> {
     return await invoke<number[]>("plugin:stronghold|execute_procedure", {
       ...this.procedureArgs,
@@ -181,7 +185,7 @@ class ProcedureExecutor {
   async recoverBIP39(
     mnemonic: string,
     outputLocation: Location,
-    passphrase?: string
+    passphrase?: string,
   ): Promise<Uint8Array> {
     return await invoke<number[]>("plugin:stronghold|execute_procedure", {
       ...this.procedureArgs,
@@ -205,7 +209,7 @@ class ProcedureExecutor {
    */
   async generateBIP39(
     outputLocation: Location,
-    passphrase?: string
+    passphrase?: string,
   ): Promise<Uint8Array> {
     return await invoke<number[]>("plugin:stronghold|execute_procedure", {
       ...this.procedureArgs,
@@ -223,6 +227,8 @@ class ProcedureExecutor {
    * Gets the Ed25519 public key of a SLIP10 private key.
    * @param privateKeyLocation The location of the private key. Must be the `outputLocation` of a previous call to `deriveSLIP10`.
    * @returns A promise resolving to the public key hex string.
+   *
+   * @since 2.0.0
    */
   async getEd25519PublicKey(privateKeyLocation: Location): Promise<Uint8Array> {
     return await invoke<number[]>("plugin:stronghold|execute_procedure", {
@@ -242,10 +248,12 @@ class ProcedureExecutor {
    * @param privateKeyLocation The location of the record where the private key is stored. Must be the `outputLocation` of a previous call to `deriveSLIP10`.
    * @param msg The message to sign.
    * @returns A promise resolving to the signature hex string.
+   *
+   * @since 2.0.0
    */
   async signEd25519(
     privateKeyLocation: Location,
-    msg: string
+    msg: string,
   ): Promise<Uint8Array> {
     return await invoke<number[]>("plugin:stronghold|execute_procedure", {
       ...this.procedureArgs,
@@ -293,20 +301,20 @@ export class Store {
     this.client = client;
   }
 
-  async get(key: StoreKey): Promise<Uint8Array> {
+  async get(key: StoreKey): Promise<Uint8Array | null> {
     return await invoke<number[]>("plugin:stronghold|get_store_record", {
       snapshotPath: this.path,
       client: this.client,
       key: toBytesDto(key),
-    }).then((v) => Uint8Array.from(v));
+    }).then((v) => (v != null ? Uint8Array.from(v) : null));
   }
 
   async insert(
     key: StoreKey,
     value: number[],
-    lifetime?: Duration
+    lifetime?: Duration,
   ): Promise<void> {
-    return await invoke("plugin:stronghold|save_store_record", {
+    await invoke("plugin:stronghold|save_store_record", {
       snapshotPath: this.path,
       client: this.client,
       key: toBytesDto(key),
@@ -322,7 +330,7 @@ export class Store {
         snapshotPath: this.path,
         client: this.client,
         key: toBytesDto(key),
-      }
+      },
     ).then((v) => (v != null ? Uint8Array.from(v) : null));
   }
 }
@@ -358,7 +366,7 @@ export class Vault extends ProcedureExecutor {
    * @returns
    */
   async insert(recordPath: RecordPath, secret: number[]): Promise<void> {
-    return await invoke("plugin:stronghold|save_secret", {
+    await invoke("plugin:stronghold|save_secret", {
       snapshotPath: this.path,
       client: this.client,
       vault: this.name,
@@ -374,11 +382,11 @@ export class Vault extends ProcedureExecutor {
    * @returns
    */
   async remove(location: Location): Promise<void> {
-    return await invoke("plugin:stronghold|remove_secret", {
+    await invoke("plugin:stronghold|remove_secret", {
       snapshotPath: this.path,
       client: this.client,
       vault: this.name,
-      location,
+      recordPath: location.payload.record,
     });
   }
 }
@@ -395,28 +403,27 @@ export class Stronghold {
    * @param path
    * @param password
    */
-  constructor(path: string, password: string) {
+  private constructor(path: string) {
     this.path = path;
-    void this.reload(password);
   }
 
   /**
-   * Force a reload of the snapshot. The password must match.
+   * Load the snapshot if it exists (password must match), or start a fresh stronghold instance otherwise.
    * @param password
    * @returns
    */
-  private async reload(password: string): Promise<void> {
+  static async load(path: string, password: string): Promise<Stronghold> {
     return await invoke("plugin:stronghold|initialize", {
-      snapshotPath: this.path,
+      snapshotPath: path,
       password,
-    });
+    }).then(() => new Stronghold(path));
   }
 
   /**
    * Remove this instance from the cache.
    */
   async unload(): Promise<void> {
-    return await invoke("plugin:stronghold|destroy", {
+    await invoke("plugin:stronghold|destroy", {
       snapshotPath: this.path,
     });
   }
@@ -440,7 +447,7 @@ export class Stronghold {
    * @returns
    */
   async save(): Promise<void> {
-    return await invoke("plugin:stronghold|save", {
+    await invoke("plugin:stronghold|save", {
       snapshotPath: this.path,
     });
   }

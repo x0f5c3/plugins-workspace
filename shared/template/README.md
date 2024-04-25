@@ -1,8 +1,10 @@
-![{{plugin name}}](banner.jpg)
+![PLUGIN_NAME](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/PLUGIN_NAME/banner.png)
 
 <!-- description -->
 
 ## Install
+
+_This plugin requires a Rust version of at least **1.75**_
 
 There are three general methods of installation that we can recommend.
 
@@ -16,19 +18,30 @@ Install the Core plugin by adding the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-<!-- plugin here --> = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
+tauri-plugin-PLUGIN_NAME = "2.0.0-beta"
+# alternatively with Git:
+tauri-plugin-PLUGIN_NAME = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
 ```
 
 You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
 
 > Note: Since most JavaScript package managers are unable to install packages from git monorepos we provide read-only mirrors of each plugin. This makes installation option 2 more ergonomic to use.
 
+<!-- Add the branch for installations using git! -->
+
 ```sh
-pnpm add <!-- plugin here -->
+pnpm add @tauri-apps/plugin-PLUGIN_NAME
 # or
-npm add <!-- plugin here -->
+npm add @tauri-apps/plugin-PLUGIN_NAME
 # or
-yarn add <!-- plugin here -->
+yarn add @tauri-apps/plugin-PLUGIN_NAME
+
+# alternatively with Git:
+pnpm add https://github.com/tauri-apps/tauri-plugin-PLUGIN_NAME#v2
+# or
+npm add https://github.com/tauri-apps/tauri-plugin-PLUGIN_NAME#v2
+# or
+yarn add https://github.com/tauri-apps/tauri-plugin-PLUGIN_NAME#v2
 ```
 
 ## Usage
@@ -40,7 +53,7 @@ First you need to register the core plugin with Tauri:
 ```rust
 fn main() {
     tauri::Builder::default()
-        .plugin(<!-- plugin here -->)
+        .plugin(tauri_plugin_PLUGIN_NAME::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -55,6 +68,22 @@ Afterwards all the plugin's APIs are available through the JavaScript guest bind
 ## Contributing
 
 PRs accepted. Please make sure to read the Contributing Guide before making a pull request.
+
+## Partners
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://crabnebula.dev" target="_blank">
+          <img src="https://github.com/tauri-apps/plugins-workspace/raw/v2/.github/sponsors/crabnebula.svg" alt="CrabNebula" width="283">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For the complete list of sponsors please visit our [website](https://tauri.app#sponsors) and [Open Collective](https://opencollective.com/tauri).
 
 ## License
 

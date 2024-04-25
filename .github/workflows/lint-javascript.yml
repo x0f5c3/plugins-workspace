@@ -1,9 +1,14 @@
+# Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
+
 name: Lint JavaScript
 
 on:
   push:
     branches:
-      - dev
+      - v1
+      - v2
     paths:
       - ".github/workflows/lint-javascript.yml"
       - "plugins/*/guest-js/**"
@@ -13,7 +18,8 @@ on:
       - "**/package.json"
   pull_request:
     branches:
-      - dev
+      - v1
+      - v2
     paths:
       - ".github/workflows/lint-javascript.yml"
       - "plugins/*/guest-js/**"
@@ -40,9 +46,10 @@ jobs:
             ${{ runner.os }}-
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
-      - uses: pnpm/action-setup@v2.2.4
+          node-version: "lts/*"
+      - uses: pnpm/action-setup@v2
         with:
+          version: 8.x.x
           run_install: true
       - name: eslint
         run: pnpm lint
@@ -59,9 +66,10 @@ jobs:
             ${{ runner.os }}-
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
-      - uses: pnpm/action-setup@v2.2.4
+          node-version: "lts/*"
+      - uses: pnpm/action-setup@v2
         with:
+          version: 8.x.x
           run_install: true
       - name: prettier check
         run: pnpm format-check

@@ -1,8 +1,20 @@
-// Copyright 2019-2021 Tauri Programme within The Commons Conservancy
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+//! [![](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/autostart/banner.png)](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/autostart)
+//!
+//! Automatically launch your application at startup. Supports Windows, Mac (via AppleScript or Launch Agent), and Linux.
+
+#![doc(
+    html_logo_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png",
+    html_favicon_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png"
+)]
+#![cfg(not(any(target_os = "android", target_os = "ios")))]
+
 use auto_launch::{AutoLaunch, AutoLaunchBuilder};
+#[cfg(target_os = "macos")]
+use log::info;
 use serde::{ser::Serializer, Serialize};
 use tauri::{
     command,
@@ -96,9 +108,8 @@ pub fn init<R: Runtime>(
 ) -> TauriPlugin<R> {
     Builder::new("autostart")
         .invoke_handler(tauri::generate_handler![enable, disable, is_enabled])
-        .setup(move |app| {
+        .setup(move |app, _api| {
             let mut builder = AutoLaunchBuilder::new();
-
             builder.set_app_name(&app.package_info().name);
             if let Some(args) = args {
                 builder.set_args(&args);
@@ -110,7 +121,23 @@ pub fn init<R: Runtime>(
             #[cfg(windows)]
             builder.set_app_path(&current_exe.display().to_string());
             #[cfg(target_os = "macos")]
-            builder.set_app_path(&current_exe.canonicalize()?.display().to_string());
+            {
+                // on macOS, current_exe gives path to /Applications/Example.app/MacOS/Example
+                // but this results in seeing a Unix Executable in macOS login items
+                // It must be: /Applications/Example.app
+                // If it didn't find exactly a single occurance of .app, it will default to
+                // exe path to not break it.
+                let exe_path = current_exe.canonicalize()?.display().to_string();
+                let parts: Vec<&str> = exe_path.split(".app/").collect();
+                let app_path =
+                    if parts.len() == 2 && matches!(macos_launcher, MacosLauncher::AppleScript) {
+                        format!("{}.app", parts.first().unwrap())
+                    } else {
+                        exe_path
+                    };
+                info!("auto_start path {}", &app_path);
+                builder.set_app_path(&app_path);
+            }
             #[cfg(target_os = "linux")]
             if let Some(appimage) = app
                 .env()

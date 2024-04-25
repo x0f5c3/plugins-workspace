@@ -1,4 +1,11 @@
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
 #![cfg(target_os = "windows")]
+
+#[cfg(feature = "semver")]
+use crate::semver_compat::semver_compat_string;
 
 use crate::SingleInstanceCallback;
 use std::ffi::CStr;
@@ -28,12 +35,18 @@ const WMCOPYDATA_SINGLE_INSTANCE_DATA: usize = 1542;
 
 pub fn init<R: Runtime>(f: Box<SingleInstanceCallback<R>>) -> TauriPlugin<R> {
     plugin::Builder::new("single-instance")
-        .setup(|app| {
-            let id = &app.config().tauri.bundle.identifier;
+        .setup(|app, _api| {
+            #[allow(unused_mut)]
+            let mut id = app.config().identifier.clone();
+            #[cfg(feature = "semver")]
+            {
+                id.push('_');
+                id.push_str(semver_compat_string(app.package_info().version.clone()).as_str());
+            }
 
-            let class_name = encode_wide(format!("{}-sic", id));
-            let window_name = encode_wide(format!("{}-siw", id));
-            let mutex_name = encode_wide(format!("{}-sim", id));
+            let class_name = encode_wide(format!("{id}-sic"));
+            let window_name = encode_wide(format!("{id}-siw"));
+            let mutex_name = encode_wide(format!("{id}-sim"));
 
             let hmutex =
                 unsafe { CreateMutexW(std::ptr::null(), true.into(), mutex_name.as_ptr()) };
@@ -58,7 +71,8 @@ pub fn init<R: Runtime>(f: Box<SingleInstanceCallback<R>>) -> TauriPlugin<R> {
                             lpData: bytes.as_ptr() as _,
                         };
                         SendMessageW(hwnd, WM_COPYDATA, 0, &cds as *const _ as _);
-                        app.exit(0);
+                        app.cleanup_before_exit();
+                        std::process::exit(0);
                     }
                 }
             } else {
@@ -113,10 +127,10 @@ unsafe extern "system" fn single_instance_window_proc<R: Runtime>(
             let cds_ptr = lparam as *const COPYDATASTRUCT;
             if (*cds_ptr).dwData == WMCOPYDATA_SINGLE_INSTANCE_DATA {
                 let data = CStr::from_ptr((*cds_ptr).lpData as _).to_string_lossy();
-                let mut s = data.split("|");
+                let mut s = data.split('|');
                 let cwd = s.next().unwrap();
-                let args = s.into_iter().map(|s| s.to_string()).collect();
-                callback(&app_handle, args, cwd.to_string());
+                let args = s.map(|s| s.to_string()).collect();
+                callback(app_handle, args, cwd.to_string());
             }
             1
         }

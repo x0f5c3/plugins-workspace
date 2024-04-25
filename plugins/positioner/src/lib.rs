@@ -1,13 +1,23 @@
 // Copyright 2021 Jonas Kruckenberg
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+//! [![](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/positioner/banner.png)](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/positioner)
+//!
 //! A plugin for Tauri that helps position your windows at well-known locations.
 //!
 //! # Cargo features
 //!
-//! - **system-tray**: Enables system-tray-relative positions.
-//!   
+//! - **tray-icon**: Enables tray-icon-relative positions.
+//!
 //!   Note: This requires attaching the Tauri plugin, *even* when using the trait extension only.
+
+#![doc(
+    html_logo_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png",
+    html_favicon_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png"
+)]
+#![cfg(not(any(target_os = "android", target_os = "ios")))]
 
 mod ext;
 
@@ -17,38 +27,25 @@ use tauri::{
     Result, Runtime,
 };
 
-#[cfg(feature = "system-tray")]
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, SystemTrayEvent};
+#[cfg(feature = "tray-icon")]
+use tauri::{tray::TrayIconEvent, AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
-#[cfg(feature = "system-tray")]
+#[cfg(feature = "tray-icon")]
 struct Tray(std::sync::Mutex<Option<(PhysicalPosition<f64>, PhysicalSize<f64>)>>);
 
-#[cfg(feature = "system-tray")]
-pub fn on_tray_event<R: Runtime>(app: &AppHandle<R>, event: &SystemTrayEvent) {
-    match event {
-        SystemTrayEvent::LeftClick { position, size, .. } => {
-            app.state::<Tray>()
-                .0
-                .lock()
-                .unwrap()
-                .replace((*position, *size));
-        }
-        SystemTrayEvent::RightClick { position, size, .. } => {
-            app.state::<Tray>()
-                .0
-                .lock()
-                .unwrap()
-                .replace((*position, *size));
-        }
-        SystemTrayEvent::DoubleClick { position, size, .. } => {
-            app.state::<Tray>()
-                .0
-                .lock()
-                .unwrap()
-                .replace((*position, *size));
-        }
-        _ => (),
-    }
+#[cfg(feature = "tray-icon")]
+pub fn on_tray_event<R: Runtime>(app: &AppHandle<R>, event: &TrayIconEvent) {
+    let position = PhysicalPosition {
+        x: event.position.x,
+        y: event.position.y,
+    };
+    // tray-icon emits PhysicalSize so the scale factor should not matter.
+    let size = event.icon_rect.size.to_physical(1.0);
+    app.state::<Tray>()
+        .0
+        .lock()
+        .unwrap()
+        .replace((position, size));
 }
 
 #[tauri::command]
@@ -61,8 +58,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     let plugin =
         plugin::Builder::new("positioner").invoke_handler(tauri::generate_handler![move_window]);
 
-    #[cfg(feature = "system-tray")]
-    let plugin = plugin.setup(|app_handle| {
+    #[cfg(feature = "tray-icon")]
+    let plugin = plugin.setup(|app_handle, _api| {
         app_handle.manage(Tray(std::sync::Mutex::new(None)));
         Ok(())
     });

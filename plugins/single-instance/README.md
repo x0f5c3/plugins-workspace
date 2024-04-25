@@ -1,8 +1,10 @@
-![tauri-plugin-single-instance](banner.jpg)
+![tauri-plugin-single-instance](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/single-instance/banner.png)
 
 Ensure a single instance of your tauri app is running.
 
 ## Install
+
+_This plugin requires a Rust version of at least **1.75**_
 
 There are three general methods of installation that we can recommend.
 
@@ -16,7 +18,9 @@ Install the Core plugin by adding the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
+tauri-plugin-single-instance = "2.0.0-beta"
+# alternatively with Git:
+tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
 ```
 
 ## Usage
@@ -36,7 +40,7 @@ struct Payload {
 
 fn main() {
     tauri::Builder::default()
-        .plugin(auri_plugin_single_instance::init(|app, argv, cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("{}, {argv:?}, {cwd}", app.package_info().name);
 
             app.emit_all("single-instance", Payload { args: argv, cwd }).unwrap();
@@ -49,6 +53,22 @@ fn main() {
 ## Contributing
 
 PRs accepted. Please make sure to read the Contributing Guide before making a pull request.
+
+## Partners
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://crabnebula.dev" target="_blank">
+          <img src="https://github.com/tauri-apps/plugins-workspace/raw/v2/.github/sponsors/crabnebula.svg" alt="CrabNebula" width="283">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For the complete list of sponsors please visit our [website](https://tauri.app#sponsors) and [Open Collective](https://opencollective.com/tauri).
 
 ## License
 

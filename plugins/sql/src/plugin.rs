@@ -1,8 +1,8 @@
-// Copyright 2021 Tauri Programme within The Commons Conservancy
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use futures::future::BoxFuture;
+use futures_core::future::BoxFuture;
 use serde::{ser::Serializer, Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::{
@@ -10,7 +10,7 @@ use sqlx::{
     migrate::{
         MigrateDatabase, Migration as SqlxMigration, MigrationSource, MigrationType, Migrator,
     },
-    Column, Pool, Row, TypeInfo,
+    Column, Pool, Row,
 };
 use tauri::{
     command,
@@ -44,6 +44,8 @@ pub enum Error {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("database {0} not loaded")]
     DatabaseNotLoaded(String),
+    #[error("unsupported datatype: {0}")]
+    UnsupportedDatatype(String),
 }
 
 impl Serialize for Error {
@@ -61,10 +63,7 @@ type Result<T> = std::result::Result<T, Error>;
 /// Resolves the App's **file path** from the `AppHandle` context
 /// object
 fn app_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
-    #[allow(deprecated)] // FIXME: Change to non-deprecated function in Tauri v2
-    app.path_resolver()
-        .app_dir()
-        .expect("No App path was found!")
+    app.path().app_config_dir().expect("No App path was found!")
 }
 
 #[cfg(feature = "sqlite")]
@@ -91,7 +90,7 @@ struct DbInstances(Mutex<HashMap<String, Pool<Db>>>);
 
 struct Migrations(Mutex<HashMap<String, MigrationList>>);
 
-#[derive(Default, Deserialize)]
+#[derive(Default, Clone, Deserialize)]
 pub struct PluginConfig {
     #[serde(default)]
     preload: Vec<String>,
@@ -208,8 +207,12 @@ async fn execute(
     let db = instances.get_mut(&db).ok_or(Error::DatabaseNotLoaded(db))?;
     let mut query = sqlx::query(&query);
     for value in values {
-        if value.is_string() {
+        if value.is_null() {
+            query = query.bind(None::<JsonValue>);
+        } else if value.is_string() {
             query = query.bind(value.as_str().unwrap().to_owned())
+        } else if let Some(number) = value.as_number() {
+            query = query.bind(number.as_f64().unwrap_or_default())
         } else {
             query = query.bind(value);
         }
@@ -235,8 +238,12 @@ async fn select(
     let db = instances.get_mut(&db).ok_or(Error::DatabaseNotLoaded(db))?;
     let mut query = sqlx::query(&query);
     for value in values {
-        if value.is_string() {
+        if value.is_null() {
+            query = query.bind(None::<JsonValue>);
+        } else if value.is_string() {
             query = query.bind(value.as_str().unwrap().to_owned())
+        } else if let Some(number) = value.as_number() {
+            query = query.bind(number.as_f64().unwrap_or_default())
         } else {
             query = query.bind(value);
         }
@@ -246,57 +253,16 @@ async fn select(
     for row in rows {
         let mut value = HashMap::default();
         for (i, column) in row.columns().iter().enumerate() {
-            let info = column.type_info();
-            let v = if info.is_null() {
-                JsonValue::Null
-            } else {
-                match info.name() {
-                    "VARCHAR" | "STRING" | "TEXT" | "DATETIME" => {
-                        if let Ok(s) = row.try_get(i) {
-                            JsonValue::String(s)
-                        } else {
-                            JsonValue::Null
-                        }
-                    }
-                    "BOOL" | "BOOLEAN" => {
-                        if let Ok(b) = row.try_get(i) {
-                            JsonValue::Bool(b)
-                        } else {
-                            let x: String = row.get(i);
-                            JsonValue::Bool(x.to_lowercase() == "true")
-                        }
-                    }
-                    "INT" | "NUMBER" | "INTEGER" | "BIGINT" | "INT8" => {
-                        if let Ok(n) = row.try_get::<i64, usize>(i) {
-                            JsonValue::Number(n.into())
-                        } else {
-                            JsonValue::Null
-                        }
-                    }
-                    "REAL" => {
-                        if let Ok(n) = row.try_get::<f64, usize>(i) {
-                            JsonValue::from(n)
-                        } else {
-                            JsonValue::Null
-                        }
-                    }
-                    // "JSON" => JsonValue::Object(row.get(i)),
-                    "BLOB" => {
-                        if let Ok(n) = row.try_get::<Vec<u8>, usize>(i) {
-                            JsonValue::Array(
-                                n.into_iter().map(|n| JsonValue::Number(n.into())).collect(),
-                            )
-                        } else {
-                            JsonValue::Null
-                        }
-                    }
-                    _ => JsonValue::Null,
-                }
-            };
+            let v = row.try_get_raw(i)?;
+
+            let v = crate::decode::to_json(v)?;
+
             value.insert(column.name().to_string(), v);
         }
+
         values.push(value);
     }
+
     Ok(values)
 }
 
@@ -307,6 +273,10 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Add migrations to a database.
     #[must_use]
     pub fn add_migrations(mut self, db_url: &str, migrations: Vec<Migration>) -> Self {
@@ -317,10 +287,10 @@ impl Builder {
     }
 
     pub fn build<R: Runtime>(mut self) -> TauriPlugin<R, Option<PluginConfig>> {
-        PluginBuilder::new("sql")
+        PluginBuilder::<R, Option<PluginConfig>>::new("sql")
             .invoke_handler(tauri::generate_handler![load, execute, select, close])
-            .setup_with_config(|app, config: Option<PluginConfig>| {
-                let config = config.unwrap_or_default();
+            .setup(|app, api| {
+                let config = api.config().clone().unwrap_or_default();
 
                 #[cfg(feature = "sqlite")]
                 create_dir_all(app_path(app)).expect("problems creating App directory!");

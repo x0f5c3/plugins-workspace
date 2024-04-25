@@ -1,4 +1,8 @@
-import { invoke } from "@tauri-apps/api/tauri";
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
+import { invoke } from "@tauri-apps/api/core";
 
 export interface QueryResult {
   /** The number of rows affected by the query. */
@@ -34,7 +38,7 @@ export default class Database {
    *
    * # Sqlite
    *
-   * The path is relative to `tauri::api::path::BaseDirectory::App` and must start with `sqlite:`.
+   * The path is relative to `tauri::path::BaseDirectory::App` and must start with `sqlite:`.
    *
    * @example
    * ```ts
@@ -58,7 +62,7 @@ export default class Database {
    *
    * # Sqlite
    *
-   * The path is relative to `tauri::api::path::BaseDirectory::App` and must start with `sqlite:`.
+   * The path is relative to `tauri::path::BaseDirectory::App` and must start with `sqlite:`.
    *
    * @example
    * ```ts
@@ -76,8 +80,27 @@ export default class Database {
    *
    * @example
    * ```ts
+   * // for sqlite & postgres
+   * // INSERT example
+   * const result = await db.execute(
+   *    "INSERT into todos (id, title, status) VALUES ($1, $2, $3)",
+   *    [ todos.id, todos.title, todos.status ]
+   * );
+   * // UPDATE example
    * const result = await db.execute(
    *    "UPDATE todos SET title = $1, completed = $2 WHERE id = $3",
+   *    [ todos.title, todos.status, todos.id ]
+   * );
+   *
+   * // for mysql
+   * // INSERT example
+   * const result = await db.execute(
+   *    "INSERT into todos (id, title, status) VALUES (?, ?, ?)",
+   *    [ todos.id, todos.title, todos.status ]
+   * );
+   * // UPDATE example
+   * const result = await db.execute(
+   *    "UPDATE todos SET title = ?, completed = ? WHERE id = ?",
    *    [ todos.title, todos.status, todos.id ]
    * );
    * ```
@@ -89,9 +112,8 @@ export default class Database {
         db: this.path,
         query,
         values: bindValues ?? [],
-      }
+      },
     );
-
     return {
       lastInsertId,
       rowsAffected,
@@ -105,8 +127,14 @@ export default class Database {
    *
    * @example
    * ```ts
+   * // for sqlite & postgres
    * const result = await db.select(
    *    "SELECT * from todos WHERE id = $1", id
+   * );
+   *
+   * // for mysql
+   * const result = await db.select(
+   *    "SELECT * from todos WHERE id = ?", id
    * );
    * ```
    */

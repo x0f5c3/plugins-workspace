@@ -1,8 +1,10 @@
-![plugin-window-state](banner.png)
+![plugin-window-state](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/window-state/banner.png)
 
-Save window positions and sizse and restore them when the app is reopened.
+Save window positions and sizes and restore them when the app is reopened.
 
 ## Install
+
+_This plugin requires a Rust version of at least **1.75**_
 
 There are three general methods of installation that we can recommend.
 
@@ -16,7 +18,28 @@ Install the Core plugin by adding the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-tauri-plugin-window-state = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
+tauri-plugin-window-state = "2.0.0-beta"
+# alternatively with Git:
+tauri-plugin-window-state = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
+```
+
+You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
+
+> Note: Since most JavaScript package managers are unable to install packages from git monorepos we provide read-only mirrors of each plugin. This makes installation option 2 more ergonomic to use.
+
+```sh
+pnpm add @tauri-apps/plugin-window-state
+# or
+npm add @tauri-apps/plugin-window-state
+# or
+yarn add @tauri-apps/plugin-window-state
+
+# alternatively with Git:
+pnpm add https://github.com/tauri-apps/tauri-plugin-window-state#v2
+# or
+npm add https://github.com/tauri-apps/tauri-plugin-window-state#v2
+# or
+yarn add https://github.com/tauri-apps/tauri-plugin-window-state#v2
 ```
 
 ## Usage
@@ -36,27 +59,62 @@ fn main() {
 
 Afterwards all windows will remember their state when the app is being closed and will restore to their previous state on the next launch.
 
-Optionally you can also tell the plugin to save the state of all open window to disk my using the `save_window_state()` method exposed by the `AppHandleExt` trait:
+Optionally you can also tell the plugin to save the state of all open window to disk by using the `save_window_state()` method exposed by the `AppHandleExt` trait:
 
 ```rust
-use tauri_plugin_window_state::AppHandleExt;
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 // `tauri::AppHandle` now has the following additional method
-app.save_window_state(); // will save the state of all open windows to disk
+app.save_window_state(StateFlags::all()); // will save the state of all open windows to disk
+```
+
+or through Javascript
+
+```javascript
+import { saveWindowState, StateFlags } from "@tauri-apps/plugin-window-state";
+
+saveWindowState(StateFlags.ALL);
 ```
 
 To manually restore a windows state from disk you can call the `restore_state()` method exposed by the `WindowExt` trait:
 
 ```rust
-use tauri_plugin_window_state::{WindowExt, ShowMode};
+use tauri_plugin_window_state::{WindowExt, StateFlags};
 
 // all `Window` types now have the following additional method
-window.restore_state(ShowMode::LastSaved); // will restore the windows state from disk
+window.restore_state(StateFlags::all()); // will restore the windows state from disk
+```
+
+or through Javascript
+
+```javascript
+import {
+  restoreStateCurrent,
+  StateFlags,
+} from "@tauri-apps/plugin-window-state";
+
+restoreStateCurrent(StateFlags.ALL);
 ```
 
 ## Contributing
 
 PRs accepted. Please make sure to read the Contributing Guide before making a pull request.
+
+## Partners
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://crabnebula.dev" target="_blank">
+          <img src="https://github.com/tauri-apps/plugins-workspace/raw/v2/.github/sponsors/crabnebula.svg" alt="CrabNebula" width="283">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For the complete list of sponsors please visit our [website](https://tauri.app#sponsors) and [Open Collective](https://opencollective.com/tauri).
 
 ## License
 

@@ -1,10 +1,12 @@
 // Copyright 2021 Jonas Kruckenberg
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-#[cfg(feature = "system-tray")]
+#[cfg(feature = "tray-icon")]
 use crate::Tray;
 use serde_repr::Deserialize_repr;
-#[cfg(feature = "system-tray")]
+#[cfg(feature = "tray-icon")]
 use tauri::Manager;
 use tauri::{PhysicalPosition, PhysicalSize, Result, Runtime, Window};
 
@@ -21,17 +23,17 @@ pub enum Position {
     LeftCenter,
     RightCenter,
     Center,
-    #[cfg(feature = "system-tray")]
+    #[cfg(feature = "tray-icon")]
     TrayLeft,
-    #[cfg(feature = "system-tray")]
+    #[cfg(feature = "tray-icon")]
     TrayBottomLeft,
-    #[cfg(feature = "system-tray")]
+    #[cfg(feature = "tray-icon")]
     TrayRight,
-    #[cfg(feature = "system-tray")]
+    #[cfg(feature = "tray-icon")]
     TrayBottomRight,
-    #[cfg(feature = "system-tray")]
+    #[cfg(feature = "tray-icon")]
     TrayCenter,
-    #[cfg(feature = "system-tray")]
+    #[cfg(feature = "tray-icon")]
     TrayBottomCenter,
 }
 
@@ -57,7 +59,7 @@ impl<R: Runtime> WindowExt for Window<R> {
             width: self.outer_size()?.width as i32,
             height: self.outer_size()?.height as i32,
         };
-        #[cfg(feature = "system-tray")]
+        #[cfg(feature = "tray-icon")]
         let (tray_position, tray_size) = self
             .state::<Tray>()
             .0
@@ -105,18 +107,25 @@ impl<R: Runtime> WindowExt for Window<R> {
                 x: screen_position.x + ((screen_size.width / 2) - (window_size.width / 2)),
                 y: screen_position.y + (screen_size.height / 2) - (window_size.height / 2),
             },
-            #[cfg(feature = "system-tray")]
+            #[cfg(feature = "tray-icon")]
             TrayLeft => {
-                if let Some((tray_x, tray_y)) = tray_position {
-                    PhysicalPosition {
-                        x: tray_x,
-                        y: tray_y - window_size.height,
-                    }
+                if let (Some((tray_x, tray_y)), Some((_, _tray_height))) =
+                    (tray_position, tray_size)
+                {
+                    let y = tray_y - window_size.height;
+                    // Choose y value based on the target OS
+                    #[cfg(target_os = "windows")]
+                    let y = if y < 0 { tray_y + _tray_height } else { y };
+
+                    #[cfg(target_os = "macos")]
+                    let y = if y < 0 { tray_y } else { y };
+
+                    PhysicalPosition { x: tray_x, y }
                 } else {
-                    panic!("tray position not set");
+                    panic!("Tray position not set");
                 }
             }
-            #[cfg(feature = "system-tray")]
+            #[cfg(feature = "tray-icon")]
             TrayBottomLeft => {
                 if let Some((tray_x, tray_y)) = tray_position {
                     PhysicalPosition {
@@ -127,19 +136,28 @@ impl<R: Runtime> WindowExt for Window<R> {
                     panic!("Tray position not set");
                 }
             }
-            #[cfg(feature = "system-tray")]
+            #[cfg(feature = "tray-icon")]
             TrayRight => {
-                if let (Some((tray_x, tray_y)), Some((tray_width, _))) = (tray_position, tray_size)
+                if let (Some((tray_x, tray_y)), Some((tray_width, _tray_height))) =
+                    (tray_position, tray_size)
                 {
+                    let y = tray_y - window_size.height;
+                    // Choose y value based on the target OS
+                    #[cfg(target_os = "windows")]
+                    let y = if y < 0 { tray_y + _tray_height } else { y };
+
+                    #[cfg(target_os = "macos")]
+                    let y = if y < 0 { tray_y } else { y };
+
                     PhysicalPosition {
                         x: tray_x + tray_width,
-                        y: tray_y - window_size.height,
+                        y,
                     }
                 } else {
                     panic!("Tray position not set");
                 }
             }
-            #[cfg(feature = "system-tray")]
+            #[cfg(feature = "tray-icon")]
             TrayBottomRight => {
                 if let (Some((tray_x, tray_y)), Some((tray_width, _))) = (tray_position, tray_size)
                 {
@@ -151,19 +169,26 @@ impl<R: Runtime> WindowExt for Window<R> {
                     panic!("Tray position not set");
                 }
             }
-            #[cfg(feature = "system-tray")]
+            #[cfg(feature = "tray-icon")]
             TrayCenter => {
-                if let (Some((tray_x, tray_y)), Some((tray_width, _))) = (tray_position, tray_size)
+                if let (Some((tray_x, tray_y)), Some((tray_width, _tray_height))) =
+                    (tray_position, tray_size)
                 {
-                    PhysicalPosition {
-                        x: tray_x + (tray_width / 2) - (window_size.width / 2),
-                        y: tray_y - window_size.height,
-                    }
+                    let x = tray_x + tray_width / 2 - window_size.width / 2;
+                    let y = tray_y - window_size.height;
+                    // Choose y value based on the target OS
+                    #[cfg(target_os = "windows")]
+                    let y = if y < 0 { tray_y + _tray_height } else { y };
+
+                    #[cfg(target_os = "macos")]
+                    let y = if y < 0 { tray_y } else { y };
+
+                    PhysicalPosition { x, y }
                 } else {
                     panic!("Tray position not set");
                 }
             }
-            #[cfg(feature = "system-tray")]
+            #[cfg(feature = "tray-icon")]
             TrayBottomCenter => {
                 if let (Some((tray_x, tray_y)), Some((tray_width, _))) = (tray_position, tray_size)
                 {
